@@ -40,7 +40,7 @@ class TestQueensGame(unittest.TestCase):
         self.assertEquals(len(successes) , nof_boards)
         # we expect that there at least one filled board
         # very little change that it is not: 0.5**64 = 5.4e-20
-        self.assertEquals(successes[-1][0] , 1)
+        self.assertEquals(successes[-1][0], 1)
 
     def test_validate(self):
         q = QueensGame(2, 2, 2)

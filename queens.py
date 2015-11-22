@@ -7,7 +7,8 @@ import ctypes
 
 class QueensGame():
 
-    def __init__(self, n, r, c):
+    def __init__(self, n, r, c, queens=[]):
+        self.start_queens = queens
         self.n = n+1
         self.l = range(1, self.n)
         self.l.reverse()
@@ -17,6 +18,10 @@ class QueensGame():
         self.init_validators()
         #self.a_boards = [ [ self.get_rand(3) for _ in xrange(c)] for y in xrange(r)]
         self.a_boards = [ [ 0 for _ in xrange(c)] for y in xrange(r)]
+
+        for q in self.start_queens:
+            self.a_boards[q[0]][q[1]] = ~0
+
         #print 'n = {}'.format(self.n)
         #print 'rows = {}'.format(r)
         #print 'cols = {}'.format(c)
@@ -31,44 +36,30 @@ class QueensGame():
         self.s_dia_ne_rollup=0
         self.s_dia_nw_rollup=0
 
+    def get_diagonal_coords(self,row, col):
+        dc_nw = col - row + (len(self.r) - 1)
+        dc_ne = row + col
+        return (dc_nw, dc_ne)
+
     @staticmethod
     def get_rand(i):
         return reduce(lambda x,y: x&y, [random.getrandbits(64) for _ in range(i)])
 
     def validate(self):
         self.init_validators()
-        for x in self.c:
-            for y in self.r:
+        for c in self.c:
+            for r in self.r:
                 #diagonal counter
-                dc_nw = x - y + (len(self.r) - 1)
-                dc_ne = y + x
-                #dc_ne = x +y -len(self.r)-1 + y
+                dc_nw,dc_ne = self.get_diagonal_coords(r,c)
                 for i in self.l:
-                    self.a_s_col[x][i] |= self.a_s_col[x][i - 1] & self.a_boards[y][x]
-                    self.a_s_row[y][i] |= self.a_s_row[y][i - 1] & self.a_boards[y][x]
-                    self.a_s_dia_nw[dc_nw][i] |= self.a_s_dia_nw[dc_nw][i - 1] & self.a_boards[y][x]
-                    self.a_s_dia_ne[dc_ne][i] |= self.a_s_dia_ne[dc_ne][i - 1] & self.a_boards[y][x]
-                self.a_s_col[x][0] |= self.a_boards[y][x]
-                self.a_s_row[y][0] |= self.a_boards[y][x]
-                self.a_s_dia_nw[dc_nw][0] |= self.a_boards[y][x]
-                self.a_s_dia_ne[dc_ne][0] |= self.a_boards[y][x]
-
-        '''
-        for y in self.r:
-            for x in self.c:
-                for i in self.l:
-                    self.a_s_row[y][i] |= self.a_s_row[y][i - 1] & self.a_boards[y][x]
-                self.a_s_row[y][0] |= self.a_boards[y][x]
-
-        for x in self.c:
-            for y in reversed(self.r):
-                dc = x-y+len(self.r)-1
-                print dc
-                for i in self.l:
-                    self.a_s_dia_nw[dc][i] |= self.a_s_dia_nw[dc][i - 1] & self.a_boards[y][x]
-                self.a_s_dia_nw[y][0] |= self.a_boards[y][x]
-        '''
-
+                    self.a_s_col[c][i] |= self.a_s_col[c][i - 1] & self.a_boards[r][c]
+                    self.a_s_row[r][i] |= self.a_s_row[r][i - 1] & self.a_boards[r][c]
+                    self.a_s_dia_nw[dc_nw][i] |= self.a_s_dia_nw[dc_nw][i - 1] & self.a_boards[r][c]
+                    self.a_s_dia_ne[dc_ne][i] |= self.a_s_dia_ne[dc_ne][i - 1] & self.a_boards[r][c]
+                self.a_s_col[c][0] |= self.a_boards[r][c]
+                self.a_s_row[r][0] |= self.a_boards[r][c]
+                self.a_s_dia_nw[dc_nw][0] |= self.a_boards[r][c]
+                self.a_s_dia_ne[dc_ne][0] |= self.a_boards[r][c]
 
         # rollup columns. if result == 0 then ok
         for s in self.a_s_col:
@@ -88,14 +79,14 @@ class QueensGame():
 
     def populate(self, times=1):
         for i in range(times):
+            # pick random row and column
             row = random.randint(0,self.size[0]-1)
             col = random.randint(0,self.size[1]-1)
 
-            dc_nw = col - row + (len(self.r) - 1)
-            dc_ne = row + col
+            # identify coresponding diagonals
+            dc_nw,dc_ne = self.get_diagonal_coords(row,col)
 
             seed = self.get_rand(1)
-            #seed = ~0
 
             self.a_boards[row][col] |=  seed & \
                 ( ~self.a_s_row[row][-2]) & \
@@ -103,7 +94,14 @@ class QueensGame():
                 ( ~self.a_s_dia_ne[dc_ne][-2]) & \
                 ( ~self.a_s_dia_nw[dc_nw][-2])
 
+    def run(self):
+        for i in range(1000/(self.n - 1)):
+            self.populate(2)
+            self.validate()
 
+    def get_results(self):
+        successes = self.find_successes()
+        return self.get_queens(successes[-1][1])
 
     def find_successes(self,nof_boards=64):
         b = (self.s_col_rollup | self.s_row_rollup | \
@@ -120,11 +118,16 @@ class QueensGame():
         return res
 
     def nof_queens(self, bit):
+        return len(self.get_queens(bit))
+
+    def get_queens(self, bit):
         tot = 0
-        for row in self.a_boards:
-            for col in row:
-                tot += (col >> bit) & 1
-        return tot
+        coords=[]
+        for r,row in enumerate(self.a_boards):
+            for c,col in enumerate(row):
+                if (col >> bit) & 1 :
+                    coords.append((r,c))
+        return coords
 
 
     @staticmethod
@@ -181,14 +184,28 @@ def print_histo(histo):
 
 if __name__ == '__main__':
 
-    q = QueensGame(1,4,4)
-    for i in range(100):
+    # 13 / 14 -> 0.227
+    #q=QueensGame(1,4,4, [(0,0)])
+    # 6 / 8 -> 0.400
+    #q=QueensGame(2, 10, 4, [(9,0),(0,3)])
+    # 0 / 1 -> 0.199
+    #q=QueensGame(1, 6, 1, [(0,0)])
+    # 2 / 3 -> 0.253
+    #q=QueensGame(1,5,5, [(0,0),(2,3)])
+    # 17 / 19 -> 1.570
+    #q=QueensGame(1,20,20, [])
+    # 51 / 58 -> 1.127
+    #q=QueensGame(3,20,20, [(0,0),(0,1),(1,2),(4,2),(4,0),(15,19),(5,7)])
+    #q=QueensGame(3,20,20, [])
+    # 24 / 30 -> 0.514
+    q=QueensGame(3,10, 15, [(0,0),(2,3),(1,2),(0,6),(6,0),(9,10)])
+
+    QueensGame.printBitMatrix(0,q.a_boards)
+    for i in range(1000/(q.n - 1)):
         q.populate(2)
         q.validate()
-        #QueensGame.printBitMatrix(0,q.a_boards)
-        #print
 
-
+    '''
     for i in range(1):
         print_bit=i
         print '====================='
@@ -203,11 +220,19 @@ if __name__ == '__main__':
 
     print 'tot  : {} {}'.format(res.count('1'), res)
     print 'fails: {}'.format(res.count("1"))
+    '''
 
     successes = q.find_successes()
-    histo=[0]*30
+    histo=[0]
+    c=2
     for n,i in successes:
+        if len(histo) <= n:
+            histo+=([0]*(n - len(histo)+1))
+
         histo[n]+=1
+
+        c+=1
+        if c < len(successes): continue
 
         print_bit=i
         print '====================='
@@ -216,5 +241,6 @@ if __name__ == '__main__':
         q.printBitStates(print_bit,'row')
         q.printBitStates(print_bit,'col')
         print 'queens found: {}'.format(q.nof_queens(i))
+
     print_histo(histo)
     print 'found successes: {} {}'.format(len(successes),successes)

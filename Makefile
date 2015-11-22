@@ -13,6 +13,11 @@ clean:
 distclean: clean
 	rm -rf venv
 
+install: clean deps
+
+go: 
+	PYTHONPATH=$(CURDIR) $(PYTHON) queens_server.py 
+
 venv:
 	virtualenv -p python2.7 venv
 	$(PIP) install -U "pip>=7.0"
