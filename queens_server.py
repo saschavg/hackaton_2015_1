@@ -33,7 +33,7 @@ class QueenRequestHandler(SimpleHTTPServer.SimpleHTTPRequestHandler):
         self.end_headers()
 
         # Send the html message
-        self.wfile.write( json.dumps(added_queens) )
+        self.wfile.write( json.dumps({'added_queens':added_queens}) )
         return 1
 
 if __name__ == '__main__':
