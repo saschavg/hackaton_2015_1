@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import random
 import sys
-import numpy
 import ctypes
 
 
