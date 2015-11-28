@@ -3,20 +3,25 @@ PIP=`. venv/bin/activate; which pip`
 DEPS:=requirements.txt
 
 
-.PHONY: clean distclean test shell deps all
+.PHONY: clean distclean test shell deps all build
 
 all: deps test
 
 clean:
-	@find . -name "*.pyc" -delete
+	@pwd
+	@rm -f *.pyc *.so *.c 
+	@rm -rf ./bulid
 
 distclean: clean
 	rm -rf venv
 
-install: clean deps
+install: clean distclean deps build
 
 go: 
 	PYTHONPATH=$(CURDIR) $(PYTHON) queens_server.py 
+
+build:
+	python setup.py build_ext --inplace
 
 venv:
 	virtualenv -p python2.7 venv
@@ -27,11 +32,12 @@ deps: venv
 	$(PIP) install -r $(DEPS) -U
 
 test: venv
-	PYTHONPATH=$(CURDIR) $(PYTHON) test_Queens.py
+	#PYTHONPATH=$(CURDIR) $(PYTHON) test_Queens.py TestQueensGame.test_position_needs_lock_1
+	python test_Queens.py
 
 shell: venv
 	$(PIP) install ipython
 	$(CURDIR)/venv/bin/ipython
 
-run: venv
-	PYTHONPATH=$(CURDIR) $(PYTHON) queens.py
+run: venv 
+	PYTHONPATH=$(CURDIR) $(PYTHON) queens_runner.py

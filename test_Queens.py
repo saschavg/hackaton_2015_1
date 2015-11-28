@@ -1,7 +1,6 @@
 from queens import *
 import numpy as np
 import unittest
-import statistics as stat
 
 class TestQueensGame(unittest.TestCase):
 
@@ -27,7 +26,7 @@ class TestQueensGame(unittest.TestCase):
 
     def test_boards_1x1(self):
         nof_boards=64
-        q = QueensGame(1, 1, 1)
+        q = QueensGame(0, 1, 1)
         #start with empty board
         self.assertEquals([[0]], q.a_boards)
         # each simulation has a 0.5 chance to get populated with a 1
@@ -35,62 +34,120 @@ class TestQueensGame(unittest.TestCase):
         # ensure some boards are populated
         self.assertNotEqual(0, bit_count(q.a_boards[0][0]))
 
-        q.validate()
         successes = q.find_successes(nof_boards)
         self.assertEquals(len(successes) , nof_boards)
         # we expect that there at least one filled board
         # very little change that it is not: 0.5**64 = 5.4e-20
         self.assertEquals(successes[-1][0], 1)
 
-    def test_validate(self):
-        q = QueensGame(2, 2, 2)
-        q.a_boards=[[1,1],[1,1]]
-        q.validate()
-        self.assertEqual([[1,1,0],[1,1,0]], q.a_s_col)
-        self.assertEqual([[1,1,0],[1,1,0]], q.a_s_row)
-        self.assertEqual(0, q.s_col_rollup)
-        self.assertEqual(0, q.s_row_rollup)
+    def test_init(self):
+        q = QueensGame(0, 2, 2, queens=[[0,0]])
+        self.assertEqual(q.n,1)
+        self.assertEqual(range(2),q.r)
+        self.assertEqual(range(2),q.c)
+        self.assertEqual([[~0,0],[0,0]], q.a_boards)
 
-        q = QueensGame(1, 2, 2)
-        q.a_boards=[[1,1],[1,1]]
-        q.validate()
-        self.assertEqual([[1,1],[1,1]], q.a_s_col)
-        self.assertEqual([[1,1],[1,1]], q.a_s_row)
-        self.assertEqual(1, q.s_col_rollup)
-        self.assertEqual(1, q.s_row_rollup)
+    def test_update_queen_count(self):
+        q = QueensGame(0, 2, 2, queens=[[0,0]])
+        s = [0]*q.n
 
-        q = QueensGame(1, 2, 2)
-        # board 0   board 1 other boards
-        #   0 1       1 0     0 0
-        #   1 1       0 0     0 0
-        q.a_boards=[[2,1],[1,1]]
+        q.update_queen_count(s,1,0)
+        self.assertEqual(0, s[-1])
 
-        # number of queens on board 0
-        self.assertEqual(3, q.nof_queens(0))
-        # number of queens on board 1
-        self.assertEqual(1, q.nof_queens(1))
-        # number of queens on board 2
-        self.assertEqual(0, q.nof_queens(2))
-        # number of queens on board 63
-        self.assertEqual(0, q.nof_queens(63))
-        q.validate()
+        q.update_queen_count(s,0,0)
+        self.assertEqual(~0, s[-1])
 
-        self.assertEqual([[3,0],[1,1]], q.a_s_col)
-        self.assertEqual([[3,0],[1,1]], q.a_s_row)
-        self.assertEqual(1, q.s_col_rollup)
-        self.assertEqual(1, q.s_row_rollup)
+        q.update_queen_count(s,1,0)
+        self.assertEqual(~0, s[-1])
 
-        # board 0 is NOT ok and should not be returned
-        self.assertEquals([],q.find_successes(1))
-        # fetching the first 2 boards yields only board 1 as that is the only
-        # one of the two with proper result
-        self.assertEquals([(1,1)],q.find_successes(2))
-        # fetching the first 3 boards yields only board 1 and 2 as they are the only
-        # one of the fist three with proper result. They are sorted by numer of
-        # queens on the board ( first param of the tuples)
-        self.assertEquals([(0,2),(1,1)],q.find_successes(3))
+        q = QueensGame(1, 2, 2, queens=[[0,0]])
+        s = [0]*q.n
+
+        q.update_queen_count(s,1,0)
+        self.assertEqual([0,0], s)
+
+        q.update_queen_count(s,0,0)
+        self.assertEqual([~0,0], s)
+
+        q.a_boards[1][1]= ~0
+        q.update_queen_count(s,1,1)
+        self.assertEqual([~0,~0], s)
+
+        q.a_boards[1][0]= ~0
+        q.update_queen_count(s,1,0)
+        self.assertEqual([~0,~0], s)
 
 
+    def test_position_needs_lock(self):
+        true=~0
+        false=0
+        q = QueensGame(0, 2, 2, queens=[[0,0]])
+        self.assertEqual(true, q.position_needs_lock(1,1))
+        self.assertEqual(true, q.position_needs_lock(1,0))
+        self.assertEqual(true, q.position_needs_lock(0,0))
+        self.assertEqual(true, q.position_needs_lock(0,1))
+
+        q = QueensGame(1, 2, 2, queens=[[0,0]])
+        self.assertEqual(false, q.position_needs_lock(1,1))
+        self.assertEqual(false, q.position_needs_lock(1,0))
+        self.assertEqual(false, q.position_needs_lock(0,0))
+        self.assertEqual(false, q.position_needs_lock(0,1))
+
+        q = QueensGame(0, 2, 3, queens=[[0,0]])
+        self.assertEqual(false, q.position_needs_lock(1,2))
+        self.assertEqual(true, q.position_needs_lock(0,2))
+        self.assertEqual(true, q.position_needs_lock(1,0))
+        self.assertEqual(true, q.position_needs_lock(0,0))
+        self.assertEqual(true, q.position_needs_lock(0,1))
+
+        q = QueensGame(0, 3, 2, queens=[[0,0]])
+        self.assertEqual(false, q.position_needs_lock(2,1))
+        self.assertEqual(true, q.position_needs_lock(2,0))
+        self.assertEqual(true, q.position_needs_lock(1,0))
+        self.assertEqual(true, q.position_needs_lock(0,0))
+        self.assertEqual(true, q.position_needs_lock(0,1))
+
+    def test_position_needs_lock_1(self):
+        true=~0
+        false=0
+        q = QueensGame(1, 3, 3, queens=[(0,0),(1,0)])
+        #q.printBitMatrix(0,q.a_boards)
+        #q.printBitMatrix(0,q.a_boards_locked)
+        self.assertEqual(true, q.position_needs_lock(0,0))
+        self.assertEqual(true, q.position_needs_lock(0,1))
+        self.assertEqual(false, q.position_needs_lock(0,2))
+
+        self.assertEqual(true, q.position_needs_lock(1,0))
+        self.assertEqual(true, q.position_needs_lock(1,1))
+        self.assertEqual(false, q.position_needs_lock(1,2))
+
+        self.assertEqual(true, q.position_needs_lock(2,0))
+        self.assertEqual(false, q.position_needs_lock(2,1))
+        self.assertEqual(false, q.position_needs_lock(2,2))
+
+    def test_update_locked_positions(self):
+        q = QueensGame(0, 2, 2)
+        self.assertEqual([[0,0],[0,0]],q.a_boards_locked)
+        q.a_boards[0][0] = ~0
+        q.update_locked_positions(0,0)
+        self.assertEqual([[~0,~0],[~0,~0]],q.a_boards_locked)
+
+        q = QueensGame(0, 3, 2)
+        self.assertEqual([[0,0],[0,0],[0,0]],q.a_boards_locked)
+        q.a_boards[0][0] = ~0
+        q.update_locked_positions(0,0)
+        self.assertEqual([[~0,~0],[~0,~0],[~0,0]],q.a_boards_locked)
+
+    def test_lock_position(self):
+        q = QueensGame(0, 2, 2, queens=[[0,0]])
+        self.assertEqual([[~0,~0],[~0,~0]],q.a_boards_locked)
+        q.lock_position(~0,1,1)
+        self.assertEqual([[~0,~0],[~0,~0]],q.a_boards_locked)
+
+        q = QueensGame(0, 2, 2, queens=[[0,0],[0,1]])
+        self.assertEqual([[~0,~0],[~0,~0]],q.a_boards_locked)
+        q.lock_position(~0,1,1)
+        self.assertEqual([[~0,~0],[~0,~0]],q.a_boards_locked)
 
     def test_boards_2x1(self):
         nof_boards=64
@@ -99,28 +156,65 @@ class TestQueensGame(unittest.TestCase):
         # 0.5 * 0.5 * 0.5 = 0.125
         # we do a 1000 runs and avarage to calc the result
         for x in range(1000):
-            q = QueensGame(2, 2, 1)
-            for i in range(1):
-                q.populate(2)
-                q.validate()
-            successes = q.find_successes(nof_boards)
+            q = QueensGame(1, 2, 1)
+            q.populate(2)
+            successes = q.find_successes()
             successes = [s[0] for s in successes ]
             res += successes
+        #print 'xx: {} of {}\n{}'.format(res.count(2), len(res), res)
         self.assertAlmostEqual(0.125, res.count(2)*1./len(res), delta=0.05)
         self.assertEqual(nof_boards*1000, len(res))
 
     def test_boards_2x2(self):
         nof_boards=64
+
+        q = QueensGame(0, 2, 2,[(0,0)])
+        # change to fill the board with additional queens == 0 if we can only
+        # see 0 queens
+        q.populate(100)
+        successes = q.find_successes(nof_boards)
+        successes = [s[0] for s in successes ]
+        self.assertEqual(0, successes.count(4))
+        self.assertEqual(nof_boards, len(successes))
+
+        q = QueensGame(0, 3, 3,[(0,0)])
+        # change to fill the board with additional queens == 0 if we can only
+        # see 0 queens
+        q.populate(100)
+        successes = q.find_successes(nof_boards)
+        successes = [s[0] for s in successes ]
+        self.assertEqual(0, successes.count(3))
+        self.assertGreater(successes.count(2),1)
+        self.assertEqual(nof_boards, len(successes))
+
+        q = QueensGame(1, 3, 3,[(0,0)])
+        # change to fill the board with additional queens
+        q.populate(100)
+        successes = q.find_successes(nof_boards)
+        successes = [s[0] for s in successes ]
+        self.assertEqual(0,successes.count(4))
+        self.assertEqual(nof_boards, len(successes))
+
+        res=[]
+        for x in range(100):
+            q = QueensGame(2, 2, 2)
+            # change to fill the board with ones in 4 seeds == 0 if we can only
+            # see 2 queens
+            q.populate(4)
+            successes = q.find_successes(nof_boards)
+            successes = [s[0] for s in successes ]
+            res += successes
+        self.assertEqual(0, res.count(4))
+        self.assertEqual(nof_boards*100, len(res))
+
         res=[]
         for x in range(2000):
-            q = QueensGame(2, 2, 2)
-            for i in range(1):
-                # change to fill the board with ones in 4 seeds
-                # chance is 0.5^4 * 1.0 * 0.75 * 0.5 * 0.25 = 0.00586 ~ 1/170
-                # chance to find an unfilled board ~ 169/170
-                # chance that one out of 64 boards is filled ~ 1 - (169/170)^64
-                q.populate(4)
-                q.validate()
+            q = QueensGame(3, 2, 2)
+            # change to fill the board with ones in 4 seeds
+            # chance is 0.5^4 * 1.0 * 0.75 * 0.5 * 0.25 = 0.00586 ~ 1/170
+            # chance to find an unfilled board ~ 169/170
+            # chance that one out of 64 boards is filled ~ 1 - (169/170)^64
+            q.populate(4)
             successes = q.find_successes(nof_boards)
             successes = [s[0] for s in successes ]
             res += successes
