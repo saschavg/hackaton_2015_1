@@ -46,6 +46,9 @@ class QueensGame():
 
             seed = self.get_rand(1)
 
+            # continue if there is nothing to do
+            if self.a_boards[row][col] == ~0 : continue
+
             #place queen if position not locked
             self.a_boards[row][col] |= (seed & ~self.a_boards_locked[row][col])
             self.update_locked_positions(row,col)
